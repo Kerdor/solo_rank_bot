@@ -8,6 +8,9 @@ from config import API_ID, API_HASH, SESSION_NAME, log
 from dungeon.cycle import run_cycle
 
 
+RETRY_DELAY = 30
+
+
 async def main():
     client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
     await client.start()
@@ -17,11 +20,11 @@ async def main():
         try:
             await run_cycle(client)
         except asyncio.TimeoutError as e:
-            log.error(f"Таймаут ожидания ответа бота: {e}. Пауза 30с и повтор.")
-            await asyncio.sleep(30)
+            log.error(f"Таймаут ожидания ответа бота: {e}. Пауза {RETRY_DELAY}с и повтор.")
+            await asyncio.sleep(RETRY_DELAY)
         except Exception as e:
-            log.exception(f"Неожиданная ошибка: {e}. Пауза 30с и повтор.")
-            await asyncio.sleep(30)
+            log.exception(f"Неожиданная ошибка: {e}. Пауза {RETRY_DELAY}с и повтор.")
+            await asyncio.sleep(RETRY_DELAY)
 
 
 if __name__ == "__main__":
