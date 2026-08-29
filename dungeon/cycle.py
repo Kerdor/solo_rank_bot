@@ -114,7 +114,7 @@ async def run_cycle(client):
 
             entries = parse_dungeons(radar_msg.raw_text)
             resets_left = parse_resets_left(radar_msg.raw_text)
-            log.info(f"Данжи: {[(e['idx'], e['name'], e['def']) for e in entries]} | сбросов: {resets_left}")
+            log.info(f"Данжи: {[(e['idx'], e['name'], e['def'], e['energy']) for e in entries]} | сбросов: {resets_left}")
 
             chosen = None
             while chosen is None:
@@ -133,7 +133,7 @@ async def run_cycle(client):
                 entries = parse_dungeons(radar_msg.raw_text)
                 resets_left = max(0, resets_left - 1)
 
-            log.info(f"Выбран данж #{chosen['idx']} {chosen['name']} (DEF {chosen['def']})")
+            log.info(f"Выбран данж #{chosen['idx']} {chosen['name']} (DEF {chosen['def']}, EN {chosen['energy']})")
 
             clicked = await click_button(radar_msg, f"Войти #{chosen['idx']}")
             if not clicked:
@@ -144,8 +144,18 @@ async def run_cycle(client):
             text = enter_resp.raw_text
             log.info(f"Ответ на вход: {text.splitlines()[0] if text else '(пусто)'}")
 
-            if await resolve_warning(conv, enter_resp):
-                continue
+            if await resolve_warning(conv, enter_resp, chosen["energy"]):
+                if "Недостаточно энергии" in text:
+                    clicked = await click_button(radar_msg, f"Войти #{chosen['idx']}")
+                    if not clicked:
+                        log.error(f"Не нашёл кнопку 'Войти #{chosen['idx']}' после восстановления энергии.")
+                        continue
+                    enter_resp = await wait_update(client, RESPONSE_TIMEOUT)
+                    text = enter_resp.raw_text
+                    if await resolve_warning(conv, enter_resp, chosen["energy"]):
+                        continue
+                else:
+                    continue
 
             if ENTER_SUCCESS_MARKER not in text:
                 log.warning(f"Неожиданный ответ на вход, жду отчёт на всякий случай:\n{text}")
