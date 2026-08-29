@@ -10,30 +10,32 @@ from parsers.profile import parse_energy
 
 
 ENERGY_EMPTY_MARKER = "Этот предмет нельзя использовать для восстановления энергии."
+ENERGY_CHECK_INTERVAL = 5 * 60
 
 
-async def wait_for_energy(conv) -> None:
-    """Ждёт естественного восстановления энергии до максимума."""
-    await conv.send_message("/profile")
-    profile = await conv.get_response()
-    energy = parse_energy(profile.raw_text)
+async def wait_for_energy(conv, required_energy: int) -> None:
+    """Периодически проверяет профиль и ждёт нужное количество энергии."""
+    while True:
+        await conv.send_message("/profile")
+        profile = await conv.get_response()
+        energy = parse_energy(profile.raw_text)
 
-    if energy is None:
-        log.warning("Не удалось определить время восстановления энергии из /profile.")
-        return
+        if energy is None:
+            log.warning("Не удалось определить энергию из /profile. Повторю проверку через 5 минут.")
+        else:
+            current, maximum, minutes_to_full = energy
+            log.info(
+                f"Энергия: {current}/{maximum}, требуется: {required_energy}. "
+                f"До полного: {minutes_to_full} мин."
+            )
+            if current >= required_energy:
+                log.info(f"Энергии достаточно для данжа: {current}/{required_energy}.")
+                return
 
-    current, maximum, minutes_to_full = energy
-    if current >= maximum:
-        return
-
-    log.info(
-        f"Кристаллы энергии закончились: {current}/{maximum}. "
-        f"Ожидаю естественное восстановление до полного ({minutes_to_full} мин)."
-    )
-    await asyncio.sleep(minutes_to_full * 60 + 5)
+        await asyncio.sleep(ENERGY_CHECK_INTERVAL)
 
 
-async def resolve_warning(conv, resp: Message) -> bool:
+async def resolve_warning(conv, resp: Message, required_energy: int = 0) -> bool:
     """Обрабатывает предупреждение через /energy и/или /heal."""
     text = resp.raw_text
     need_energy, need_hp = classify_warning(text)
@@ -49,7 +51,7 @@ async def resolve_warning(conv, resp: Message) -> bool:
         log.info(f"/energy -> {energy_resp.raw_text}")
 
         if ENERGY_EMPTY_MARKER in energy_resp.raw_text:
-            await wait_for_energy(conv)
+            await wait_for_energy(conv, required_energy)
 
     if need_hp:
         await conv.send_message("/heal")
