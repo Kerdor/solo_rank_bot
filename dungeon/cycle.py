@@ -5,6 +5,8 @@ from config import (
     BOT_USERNAME,
     RESPONSE_TIMEOUT,
     REPORT_EXTRA_WAIT,
+    STALE_DUNGEON_EXTRA_WAIT,
+    DEFAULT_DUNGEON_ETA_MINUTES,
     HOT_SPRINGS_MSG_TIMEOUT,
     LOW_HP_THRESHOLD_PERCENT,
 )
@@ -101,7 +103,7 @@ async def run_cycle(client):
                     continue
                 if ALREADY_IN_DUNGEON_MARKER in radar_msg.raw_text:
                     log.info("Уже в данже (незавершённый прошлый забег) — жду отчёт вместо списка.")
-                    stale_report = await wait_for_report(conv, client, REPORT_EXTRA_WAIT + 10 * 60)
+                    stale_report = await wait_for_report(conv, client, REPORT_EXTRA_WAIT + STALE_DUNGEON_EXTRA_WAIT)
                     if INJURY_MARKER in stale_report.raw_text:
                         await visit_hot_springs(conv, client)
                     radar_msg = None
@@ -149,7 +151,7 @@ async def run_cycle(client):
                 log.warning(f"Неожиданный ответ на вход, жду отчёт на всякий случай:\n{text}")
 
             eta_match = DUNGEON_ETA_RE.search(text)
-            eta_minutes = int(eta_match.group(1)) if eta_match else 3
+            eta_minutes = int(eta_match.group(1)) if eta_match else DEFAULT_DUNGEON_ETA_MINUTES
             wait_seconds = eta_minutes * 60 + REPORT_EXTRA_WAIT
             log.info(f"Данж запущен, жду отчёт (~{eta_minutes} мин, таймаут {wait_seconds}с)...")
 
