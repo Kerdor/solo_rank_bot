@@ -3,13 +3,27 @@
 from telethon.tl.custom import Message
 
 
+def _normalize(text: str) -> str:
+    return " ".join(text.split()).strip()
+
+
 async def click_button(message: Message, text: str) -> bool:
-    """Кликает кнопку, текст которой содержит text."""
+    """Кликает кнопку с точным совпадением текста или безопасным префиксом."""
     if not message.buttons:
         return False
-    for row in message.buttons:
-        for button in row:
-            if text.strip() in button.text.strip():
-                await button.click()
-                return True
+
+    target = _normalize(text)
+    buttons = [button for row in message.buttons for button in row]
+
+    for button in buttons:
+        if _normalize(button.text) == target:
+            await button.click()
+            return True
+
+    for button in buttons:
+        button_text = _normalize(button.text)
+        if button_text.startswith(target + " "):
+            await button.click()
+            return True
+
     return False
