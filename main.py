@@ -4,11 +4,8 @@ import asyncio
 
 from telethon import TelegramClient
 
-from config import API_ID, API_HASH, SESSION_NAME, log
+from config import API_ID, API_HASH, SESSION_NAME, RETRY_DELAY, log
 from dungeon.cycle import run_cycle
-
-
-RETRY_DELAY = 30
 
 
 async def main():
