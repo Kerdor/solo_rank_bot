@@ -5,7 +5,8 @@ import re
 
 RESETS_RE = re.compile(r"Доступно сбросов:\s*(\d+)\s*/\s*(\d+)")
 ENTRY_RE = re.compile(
-    r"(\d+)\.\s*(.+?)\s*\n\[Ранг:\s*([A-ZА-Я]+)\]\s*\|\s*🛡\s*DEF:\s*(\d+)"
+    r"(\d+)\.\s*(.+?)\s*\n\[Ранг:\s*([A-ZА-Я]+)\]\s*\|\s*🛡\s*DEF:\s*(\d+)\s*\n"
+    r"⚡️\s*Вход:\s*(\d+)\s*EN"
 )
 DUNGEON_ETA_RE = re.compile(r"Отчёт будет готов через\s*(\d+)\s*минут")
 
@@ -18,16 +19,17 @@ def parse_resets_left(text: str) -> int:
 
 
 def parse_dungeons(text: str):
-    """Возвращает список dict: {idx, name, rank, def}."""
+    """Возвращает список dict: {idx, name, rank, def, energy}."""
     entries = []
     for m in ENTRY_RE.finditer(text):
-        idx, name, rank, defense = m.groups()
+        idx, name, rank, defense, energy = m.groups()
         entries.append(
             {
                 "idx": int(idx),
                 "name": name.strip(),
                 "rank": rank,
                 "def": int(defense),
+                "energy": int(energy),
             }
         )
     if not entries:
