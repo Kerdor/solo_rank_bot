@@ -14,13 +14,11 @@ load_dotenv()
 
 API_ID = int(os.getenv("API_ID", "0"))
 API_HASH = os.getenv("API_HASH", "")
+BOT_USERNAME = os.getenv("BOT_USERNAME", "solo_rank_bot")
+SESSION_NAME = os.getenv("SESSION_NAME", "auth/dungeon_selfbot")
 
 if not API_ID or not API_HASH:
     raise RuntimeError("Не заданы API_ID и API_HASH в .env")
-
-SESSION_NAME = "auth/dungeon_selfbot"
-
-BOT_USERNAME = "solo_rank_bot"
 
 # Таймауты ожидания ответа бота (сек)
 RESPONSE_TIMEOUT = 30
