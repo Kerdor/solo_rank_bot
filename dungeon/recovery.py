@@ -12,6 +12,7 @@ from telegram.buttons import click_button
 
 ENERGY_EMPTY_MARKER = "Этот предмет нельзя использовать для восстановления энергии."
 ENERGY_CHECK_INTERVAL = 5 * 60
+COMMAND_DELAY = 1.5
 
 
 async def wait_for_energy(conv, required_energy: int) -> None:
@@ -47,6 +48,7 @@ async def resolve_warning(conv, resp: Message, required_energy: int = 0) -> str 
     log.info(f"Предупреждение: энергия={need_energy}, hp={need_hp} ({first_line})")
 
     if need_energy:
+        await asyncio.sleep(COMMAND_DELAY)
         await conv.send_message("/energy")
         energy_resp = await conv.get_response()
         log.info(f"/energy -> {energy_resp.raw_text}")
@@ -59,6 +61,7 @@ async def resolve_warning(conv, resp: Message, required_energy: int = 0) -> str 
             await wait_for_energy(conv, required_energy)
 
     if need_hp:
+        await asyncio.sleep(COMMAND_DELAY)
         await conv.send_message("/heal")
         heal_resp = await conv.get_response()
         log.info(f"/heal -> {heal_resp.raw_text}")
