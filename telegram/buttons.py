@@ -8,7 +8,7 @@ def _normalize(text: str) -> str:
 
 
 async def click_button(message: Message, text: str) -> bool:
-    """Кликает кнопку с точным совпадением текста или безопасным префиксом."""
+    """Кликает кнопку с точным совпадением или содержащую искомый текст."""
     if not message.buttons:
         return False
 
@@ -16,13 +16,14 @@ async def click_button(message: Message, text: str) -> bool:
     buttons = [button for row in message.buttons for button in row]
 
     for button in buttons:
-        if _normalize(button.text) == target:
+        button_text = _normalize(button.text)
+        if button_text == target:
             await button.click()
             return True
 
     for button in buttons:
         button_text = _normalize(button.text)
-        if button_text.startswith(target + " "):
+        if target in button_text:
             await button.click()
             return True
 
