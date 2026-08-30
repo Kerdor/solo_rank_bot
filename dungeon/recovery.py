@@ -8,7 +8,6 @@ from config import log
 from parsers.messages import classify_warning, ENERGY_WARNING_MARKER, EXHAUSTION_BUTTON
 from parsers.profile import parse_energy
 from telegram.buttons import click_button
-from telegram.events import click_and_wait_update
 
 
 ENERGY_EMPTY_MARKER = "Этот предмет нельзя использовать для восстановления энергии."
@@ -39,25 +38,20 @@ async def wait_for_energy(conv, required_energy: int) -> None:
         await asyncio.sleep(ENERGY_CHECK_INTERVAL)
 
 
-async def enter_exhaustion(conv) -> bool:
-    """Получает свежий экран предупреждения и нажимает вход в истощении."""
-    await asyncio.sleep(COMMAND_DELAY)
-    await conv.send_message("/dungeon")
-    warning = await conv.get_response()
+async def enter_exhaustion(message: Message) -> bool:
+    """Нажимает 'Войти в истощении' на уже обновлённом сообщении предупреждения."""
+    buttons = [button.text for row in message.buttons or [] for button in row]
+    log.info(f"Кнопки предупреждения об энергии: {buttons}")
 
-    log.info(f"Кнопки предупреждения об энергии: {[button.text for row in warning.buttons or [] for button in row]}")
-    if ENERGY_WARNING_MARKER not in warning.raw_text:
+    if ENERGY_WARNING_MARKER not in message.raw_text:
         return False
 
-    try:
-        updated = await click_and_wait_update(conv._client, warning, EXHAUSTION_BUTTON, 30)
-        if updated is not None:
-            log.info("Вход в истощении подтверждён обновлением сообщения.")
-            return True
-    except asyncio.TimeoutError:
-        log.warning("После нажатия 'Войти в истощении' не дождался обновления сообщения.")
+    if await click_button(message, EXHAUSTION_BUTTON):
+        log.info("Кристаллов нет, HP достаточно — нажал 'Войти в истощении'.")
+        return True
 
-    return await click_button(warning, EXHAUSTION_BUTTON)
+    log.error("Кнопка 'Войти в истощении' не найдена или не нажалась.")
+    return False
 
 
 async def resolve_warning(conv, resp: Message, required_energy: int = 0) -> str | bool:
@@ -84,7 +78,7 @@ async def resolve_warning(conv, resp: Message, required_energy: int = 0) -> str 
 
         if ENERGY_EMPTY_MARKER in energy_resp.raw_text:
             if not need_hp and ENERGY_WARNING_MARKER in text:
-                if await enter_exhaustion(conv):
+                if await enter_exhaustion(resp):
                     return "started"
             await wait_for_energy(conv, required_energy)
 
