@@ -5,7 +5,7 @@ import asyncio
 from telethon.tl.custom import Message
 
 from config import log
-from parsers.messages import classify_warning, ENERGY_WARNING_MARKER, EXHAUSTION_BUTTON
+from parsers.messages import classify_warning, EXHAUSTION_BUTTON
 from parsers.profile import parse_energy
 from telegram.buttons import click_button
 
@@ -44,14 +44,14 @@ async def enter_exhaustion(conv) -> bool:
     await conv.send_message("/dungeon")
     warning = await conv.get_response()
 
-    if ENERGY_WARNING_MARKER not in warning.raw_text:
-        return False
+    buttons = [button.text for row in warning.buttons or [] for button in row]
+    log.info(f"Кнопки предупреждения об энергии: {buttons}")
 
     if await click_button(warning, EXHAUSTION_BUTTON):
         log.info("Кристаллов нет, HP достаточно — вхожу в данж в режиме истощения.")
         return True
 
-    log.error("Кнопка 'Войти в истощении' не найдена в свежем предупреждении.")
+    log.error("Кнопка 'Войти в истощении' не найдена или не нажалась.")
     return False
 
 
@@ -78,10 +78,11 @@ async def resolve_warning(conv, resp: Message, required_energy: int = 0) -> str 
             log.info(f"/energy -> {energy_resp.raw_text}")
 
         if ENERGY_EMPTY_MARKER in energy_resp.raw_text:
-            if not need_hp and ENERGY_WARNING_MARKER in text:
+            if not need_hp:
                 if await enter_exhaustion(conv):
                     return "started"
-            await wait_for_energy(conv, required_energy)
+            else:
+                await wait_for_energy(conv, required_energy)
 
     if need_hp:
         await asyncio.sleep(COMMAND_DELAY)
