@@ -5,8 +5,9 @@ import asyncio
 from telethon.tl.custom import Message
 
 from config import log
-from parsers.messages import classify_warning
+from parsers.messages import classify_warning, ENERGY_WARNING_MARKER, EXHAUSTION_BUTTON
 from parsers.profile import parse_energy
+from telegram.buttons import click_button
 
 
 ENERGY_EMPTY_MARKER = "Этот предмет нельзя использовать для восстановления энергии."
@@ -36,7 +37,7 @@ async def wait_for_energy(conv, required_energy: int) -> None:
 
 
 async def resolve_warning(conv, resp: Message, required_energy: int = 0) -> bool:
-    """Обрабатывает предупреждение через /energy и/или /heal."""
+    """Обрабатывает предупреждение через /energy, истощение и/или /heal."""
     text = resp.raw_text
     need_energy, need_hp = classify_warning(text)
     if not (need_energy or need_hp):
@@ -51,6 +52,10 @@ async def resolve_warning(conv, resp: Message, required_energy: int = 0) -> bool
         log.info(f"/energy -> {energy_resp.raw_text}")
 
         if ENERGY_EMPTY_MARKER in energy_resp.raw_text:
+            if not need_hp and ENERGY_WARNING_MARKER in text:
+                if await click_button(resp, EXHAUSTION_BUTTON):
+                    log.info("Кристаллов нет, HP достаточно — вхожу в данж в режиме истощения.")
+                    return True
             await wait_for_energy(conv, required_energy)
 
     if need_hp:
