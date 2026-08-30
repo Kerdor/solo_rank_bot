@@ -75,6 +75,18 @@ async def visit_hot_springs(conv, client, profile_msg=None):
     log.info("Восстановление завершено, возвращаюсь к данжам.")
 
 
+async def get_dungeon_radar(conv):
+    """Получает свежий список данжей и обрабатывает предупреждения."""
+    while True:
+        await conv.send_message("/dungeon")
+        radar_msg = await conv.get_response(timeout=RESPONSE_TIMEOUT)
+        warning_result = await resolve_warning(conv, radar_msg)
+        if warning_result:
+            log.info("Вместо списка данжей пришло предупреждение — пробуем /dungeon снова.")
+            continue
+        return radar_msg
+
+
 async def run_cycle(client):
     async with client.conversation(BOT_USERNAME, timeout=RESPONSE_TIMEOUT) as conv:
         while True:
@@ -95,22 +107,13 @@ async def run_cycle(client):
                 heal_resp = await conv.get_response()
                 log.info(f"/heal -> {heal_resp.raw_text.splitlines()[0] if heal_resp.raw_text else ''}")
 
-            while True:
-                await conv.send_message("/dungeon")
-                radar_msg = await conv.get_response(timeout=RESPONSE_TIMEOUT)
-                warning_result = await resolve_warning(conv, radar_msg)
-                if warning_result:
-                    log.info("Вместо списка данжей пришло предупреждение — пробуем /dungeon снова.")
-                    continue
-                if ALREADY_IN_DUNGEON_MARKER in radar_msg.raw_text:
-                    log.info("Уже в данже (незавершённый прошлый забег) — жду отчёт вместо списка.")
-                    stale_report = await wait_for_report(conv, client, REPORT_EXTRA_WAIT + STALE_DUNGEON_EXTRA_WAIT)
-                    if INJURY_MARKER in stale_report.raw_text:
-                        await visit_hot_springs(conv, client)
-                    radar_msg = None
-                break
+            radar_msg = await get_dungeon_radar(conv)
 
-            if radar_msg is None:
+            if ALREADY_IN_DUNGEON_MARKER in radar_msg.raw_text:
+                log.info("Уже в данже (незавершённый прошлый забег) — жду отчёт вместо списка.")
+                stale_report = await wait_for_report(conv, client, REPORT_EXTRA_WAIT + STALE_DUNGEON_EXTRA_WAIT)
+                if INJURY_MARKER in stale_report.raw_text:
+                    await visit_hot_springs(conv, client)
                 continue
 
             entries = parse_dungeons(radar_msg.raw_text)
@@ -150,9 +153,10 @@ async def run_cycle(client):
                 enter_resp = await wait_update(client, RESPONSE_TIMEOUT)
                 text = enter_resp.raw_text
             elif warning_result == "retry":
+                radar_msg = await get_dungeon_radar(conv)
                 clicked = await click_button(radar_msg, f"Войти #{chosen['idx']}")
                 if not clicked:
-                    log.error(f"Не нашёл кнопку 'Войти #{chosen['idx']}' после обработки предупреждения.")
+                    log.error(f"Не нашёл свежую кнопку 'Войти #{chosen['idx']}' после обработки предупреждения.")
                     continue
                 enter_resp = await wait_update(client, RESPONSE_TIMEOUT)
                 text = enter_resp.raw_text
