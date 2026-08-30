@@ -5,9 +5,10 @@ import asyncio
 from telethon.tl.custom import Message
 
 from config import log
-from parsers.messages import classify_warning, EXHAUSTION_BUTTON
+from parsers.messages import classify_warning, ENERGY_WARNING_MARKER, EXHAUSTION_BUTTON
 from parsers.profile import parse_energy
 from telegram.buttons import click_button
+from telegram.events import click_and_wait_update
 
 
 ENERGY_EMPTY_MARKER = "Этот предмет нельзя использовать для восстановления энергии."
@@ -44,15 +45,19 @@ async def enter_exhaustion(conv) -> bool:
     await conv.send_message("/dungeon")
     warning = await conv.get_response()
 
-    buttons = [button.text for row in warning.buttons or [] for button in row]
-    log.info(f"Кнопки предупреждения об энергии: {buttons}")
+    log.info(f"Кнопки предупреждения об энергии: {[button.text for row in warning.buttons or [] for button in row]}")
+    if ENERGY_WARNING_MARKER not in warning.raw_text:
+        return False
 
-    if await click_button(warning, EXHAUSTION_BUTTON):
-        log.info("Кристаллов нет, HP достаточно — вхожу в данж в режиме истощения.")
-        return True
+    try:
+        updated = await click_and_wait_update(conv._client, warning, EXHAUSTION_BUTTON, 30)
+        if updated is not None:
+            log.info("Вход в истощении подтверждён обновлением сообщения.")
+            return True
+    except asyncio.TimeoutError:
+        log.warning("После нажатия 'Войти в истощении' не дождался обновления сообщения.")
 
-    log.error("Кнопка 'Войти в истощении' не найдена или не нажалась.")
-    return False
+    return await click_button(warning, EXHAUSTION_BUTTON)
 
 
 async def resolve_warning(conv, resp: Message, required_energy: int = 0) -> str | bool:
@@ -78,11 +83,10 @@ async def resolve_warning(conv, resp: Message, required_energy: int = 0) -> str 
             log.info(f"/energy -> {energy_resp.raw_text}")
 
         if ENERGY_EMPTY_MARKER in energy_resp.raw_text:
-            if not need_hp:
+            if not need_hp and ENERGY_WARNING_MARKER in text:
                 if await enter_exhaustion(conv):
                     return "started"
-            else:
-                await wait_for_energy(conv, required_energy)
+            await wait_for_energy(conv, required_energy)
 
     if need_hp:
         await asyncio.sleep(COMMAND_DELAY)
