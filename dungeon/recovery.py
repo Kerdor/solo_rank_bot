@@ -11,8 +11,9 @@ from telegram.buttons import click_button
 
 
 ENERGY_EMPTY_MARKER = "Этот предмет нельзя использовать для восстановления энергии."
+TOO_MANY_COMMANDS_MARKER = "Слишком много команд. Подожди секунду."
 ENERGY_CHECK_INTERVAL = 5 * 60
-COMMAND_DELAY = 1.5
+COMMAND_DELAY = 1.2
 
 
 async def wait_for_energy(conv, required_energy: int) -> None:
@@ -37,6 +38,23 @@ async def wait_for_energy(conv, required_energy: int) -> None:
         await asyncio.sleep(ENERGY_CHECK_INTERVAL)
 
 
+async def enter_exhaustion(conv) -> bool:
+    """Получает свежий экран предупреждения и нажимает вход в истощении."""
+    await asyncio.sleep(COMMAND_DELAY)
+    await conv.send_message("/dungeon")
+    warning = await conv.get_response()
+
+    if ENERGY_WARNING_MARKER not in warning.raw_text:
+        return False
+
+    if await click_button(warning, EXHAUSTION_BUTTON):
+        log.info("Кристаллов нет, HP достаточно — вхожу в данж в режиме истощения.")
+        return True
+
+    log.error("Кнопка 'Войти в истощении' не найдена в свежем предупреждении.")
+    return False
+
+
 async def resolve_warning(conv, resp: Message, required_energy: int = 0) -> str | bool:
     """Обрабатывает предупреждение через /energy, истощение и/или /heal."""
     text = resp.raw_text
@@ -53,10 +71,15 @@ async def resolve_warning(conv, resp: Message, required_energy: int = 0) -> str 
         energy_resp = await conv.get_response()
         log.info(f"/energy -> {energy_resp.raw_text}")
 
+        if TOO_MANY_COMMANDS_MARKER in energy_resp.raw_text:
+            await asyncio.sleep(COMMAND_DELAY)
+            await conv.send_message("/energy")
+            energy_resp = await conv.get_response()
+            log.info(f"/energy -> {energy_resp.raw_text}")
+
         if ENERGY_EMPTY_MARKER in energy_resp.raw_text:
             if not need_hp and ENERGY_WARNING_MARKER in text:
-                if await click_button(resp, EXHAUSTION_BUTTON):
-                    log.info("Кристаллов нет, HP достаточно — вхожу в данж в режиме истощения.")
+                if await enter_exhaustion(conv):
                     return "started"
             await wait_for_energy(conv, required_energy)
 
