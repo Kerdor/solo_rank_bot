@@ -98,8 +98,9 @@ async def run_cycle(client):
             while True:
                 await conv.send_message("/dungeon")
                 radar_msg = await conv.get_response(timeout=RESPONSE_TIMEOUT)
-                if await resolve_warning(conv, radar_msg):
-                    log.info("Вместо списка данжей пришло предупреждение — почистили, пробуем /dungeon снова.")
+                warning_result = await resolve_warning(conv, radar_msg)
+                if warning_result:
+                    log.info("Вместо списка данжей пришло предупреждение — пробуем /dungeon снова.")
                     continue
                 if ALREADY_IN_DUNGEON_MARKER in radar_msg.raw_text:
                     log.info("Уже в данже (незавершённый прошлый забег) — жду отчёт вместо списка.")
@@ -144,17 +145,23 @@ async def run_cycle(client):
             text = enter_resp.raw_text
             log.info(f"Ответ на вход: {text.splitlines()[0] if text else '(пусто)'}")
 
-            if await resolve_warning(conv, enter_resp, chosen["energy"]):
-                if "Недостаточно энергии" in text:
-                    clicked = await click_button(radar_msg, f"Войти #{chosen['idx']}")
-                    if not clicked:
-                        log.error(f"Не нашёл кнопку 'Войти #{chosen['idx']}' после восстановления энергии.")
-                        continue
+            warning_result = await resolve_warning(conv, enter_resp, chosen["energy"])
+            if warning_result == "started":
+                enter_resp = await wait_update(client, RESPONSE_TIMEOUT)
+                text = enter_resp.raw_text
+            elif warning_result == "retry":
+                clicked = await click_button(radar_msg, f"Войти #{chosen['idx']}")
+                if not clicked:
+                    log.error(f"Не нашёл кнопку 'Войти #{chosen['idx']}' после обработки предупреждения.")
+                    continue
+                enter_resp = await wait_update(client, RESPONSE_TIMEOUT)
+                text = enter_resp.raw_text
+
+                warning_result = await resolve_warning(conv, enter_resp, chosen["energy"])
+                if warning_result == "started":
                     enter_resp = await wait_update(client, RESPONSE_TIMEOUT)
                     text = enter_resp.raw_text
-                    if await resolve_warning(conv, enter_resp, chosen["energy"]):
-                        continue
-                else:
+                elif warning_result == "retry":
                     continue
 
             if ENTER_SUCCESS_MARKER not in text:
