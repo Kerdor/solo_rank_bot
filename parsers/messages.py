@@ -14,6 +14,9 @@ START_RECOVERY_BUTTON = "Начать восстановление"
 ENTER_SUCCESS_MARKER = "Инстанс-данж запущен"
 REPORT_MARKER = "Отчёт инстанс-данжа"
 
+ENERGY_WARNING_MARKER = "⚠️ Недостаточно энергии."
+EXHAUSTION_BUTTON = "Войти в истощении"
+
 
 def classify_warning(text: str):
     """Возвращает (need_energy, need_hp) или (False, False)."""
