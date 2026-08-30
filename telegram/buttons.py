@@ -3,6 +3,7 @@
 from telethon.tl.custom import Message
 
 
+
 def _normalize(text: str) -> str:
     return " ".join(text.split()).strip()
 
@@ -18,7 +19,10 @@ async def click_button(message: Message, text: str) -> bool:
     for button in buttons:
         button_text = _normalize(button.text)
         if button_text == target or target in button_text:
-            await button.click()
+            try:
+                await button.click()
+            except Exception:
+                return False
             return True
 
     return False
