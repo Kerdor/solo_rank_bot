@@ -22,11 +22,12 @@ from parsers.messages import (
     HOT_SPRINGS_BUTTON,
     START_RECOVERY_BUTTON,
     RECOVERY_DONE_MARKER,
+    EXHAUSTION_BUTTON,
 )
 from dungeon.selector import choose_dungeon
 from dungeon.recovery import resolve_warning
 from telegram.buttons import click_button
-from telegram.events import wait_update
+from telegram.events import wait_update, click_and_wait_update
 
 
 async def wait_for_report(conv, client, wait_seconds):
@@ -139,18 +140,27 @@ async def run_cycle(client):
 
             log.info(f"Выбран данж #{chosen['idx']} {chosen['name']} (DEF {chosen['def']}, EN {chosen['energy']})")
 
-            clicked = await click_button(radar_msg, f"Войти #{chosen['idx']}")
-            if not clicked:
-                log.error(f"Не нашёл кнопку 'Войти #{chosen['idx']}', пропускаю цикл.")
+            updated_radar = await click_and_wait_update(
+                client,
+                radar_msg,
+                f"Войти #{chosen['idx']}",
+                RESPONSE_TIMEOUT,
+            )
+            if updated_radar is None:
+                log.error(f"Не удалось получить обновлённое сообщение после 'Войти #{chosen['idx']}'.")
                 continue
 
-            enter_resp = await wait_update(client, RESPONSE_TIMEOUT)
-            text = enter_resp.raw_text
-            log.info(f"Ответ на вход: {text.splitlines()[0] if text else '(пусто)'}")
+            text = updated_radar.raw_text
+            buttons = [button.text for row in updated_radar.buttons or [] for button in row]
+            log.info(f"Обновлённое сообщение #{updated_radar.id}: {text.splitlines()[0] if text else '(пусто)'}")
+            log.info(f"Кнопки после входа в данж: {buttons}")
 
-            warning_result = await resolve_warning(conv, enter_resp, chosen["energy"])
+            if any(EXHAUSTION_BUTTON in button for button in buttons):
+                log.info("После входа появилось подтверждение режима истощения.")
+
+            warning_result = await resolve_warning(conv, updated_radar, chosen["energy"])
             if warning_result == "started":
-                enter_resp = await wait_update(client, RESPONSE_TIMEOUT)
+                enter_resp = await wait_update(client, RESPONSE_TIMEOUT, updated_radar.id)
                 text = enter_resp.raw_text
             elif warning_result == "retry":
                 radar_msg = await get_dungeon_radar(conv)
