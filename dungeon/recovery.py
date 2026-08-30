@@ -36,7 +36,7 @@ async def wait_for_energy(conv, required_energy: int) -> None:
         await asyncio.sleep(ENERGY_CHECK_INTERVAL)
 
 
-async def resolve_warning(conv, resp: Message, required_energy: int = 0) -> bool:
+async def resolve_warning(conv, resp: Message, required_energy: int = 0) -> str | bool:
     """Обрабатывает предупреждение через /energy, истощение и/или /heal."""
     text = resp.raw_text
     need_energy, need_hp = classify_warning(text)
@@ -55,11 +55,12 @@ async def resolve_warning(conv, resp: Message, required_energy: int = 0) -> bool
             if not need_hp and ENERGY_WARNING_MARKER in text:
                 if await click_button(resp, EXHAUSTION_BUTTON):
                     log.info("Кристаллов нет, HP достаточно — вхожу в данж в режиме истощения.")
-                    return True
+                    return "started"
             await wait_for_energy(conv, required_energy)
 
     if need_hp:
         await conv.send_message("/heal")
         heal_resp = await conv.get_response()
         log.info(f"/heal -> {heal_resp.raw_text}")
-    return True
+
+    return "retry"
