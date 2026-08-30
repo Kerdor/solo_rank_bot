@@ -47,7 +47,7 @@ async def enter_exhaustion(message: Message) -> bool:
         return False
 
     if await click_button(message, EXHAUSTION_BUTTON):
-        log.info("Кристаллов нет, HP достаточно — нажал 'Войти в истощении'.")
+        log.info("Вход в данж в режиме истощения подтверждён.")
         return True
 
     log.error("Кнопка 'Войти в истощении' не найдена или не нажалась.")
@@ -77,9 +77,28 @@ async def resolve_warning(conv, resp: Message, required_energy: int = 0) -> str 
             log.info(f"/energy -> {energy_resp.raw_text}")
 
         if ENERGY_EMPTY_MARKER in energy_resp.raw_text:
-            if not need_hp and ENERGY_WARNING_MARKER in text:
+            if need_hp:
+                await asyncio.sleep(COMMAND_DELAY)
+                await conv.send_message("/heal")
+                heal_resp = await conv.get_response()
+                log.info(f"/heal -> {heal_resp.raw_text}")
+
+                await asyncio.sleep(COMMAND_DELAY)
+                updated_warning = await conv._client.get_messages(resp.chat_id, ids=resp.id)
+                if updated_warning:
+                    resp = updated_warning
+                    log.info(
+                        f"После /heal сообщение #{resp.id} содержит кнопки: "
+                        f"{[button.text for row in resp.buttons or [] for button in row]}"
+                    )
+
                 if await enter_exhaustion(resp):
                     return "started"
+                return "retry"
+
+            if await enter_exhaustion(resp):
+                return "started"
+
             await wait_for_energy(conv, required_energy)
 
     if need_hp:
