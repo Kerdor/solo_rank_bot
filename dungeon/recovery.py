@@ -6,13 +6,16 @@ from telethon.tl.custom import Message
 
 from config import log
 from parsers.messages import classify_warning, ENERGY_WARNING_MARKER, EXHAUSTION_BUTTON
-from parsers.profile import parse_energy
+from parsers.profile import parse_energy, parse_hp_percent
 from telegram.buttons import click_button
 
 
 ENERGY_EMPTY_MARKER = "Этот предмет нельзя использовать для восстановления энергии."
+HEAL_EMPTY_MARKER = "Лечебный предмет не найден в инвентаре."
 TOO_MANY_COMMANDS_MARKER = "Слишком много команд. Подожди секунду."
 ENERGY_CHECK_INTERVAL = 5 * 60
+HP_CHECK_INTERVAL = 60
+SAFE_HP_THRESHOLD_PERCENT = 30
 COMMAND_DELAY = 1.2
 
 
@@ -36,6 +39,27 @@ async def wait_for_energy(conv, required_energy: int) -> None:
                 return
 
         await asyncio.sleep(ENERGY_CHECK_INTERVAL)
+
+
+async def wait_for_natural_hp_recovery(conv) -> None:
+    """Периодически проверяет профиль и ждёт безопасного уровня HP."""
+    while True:
+        await conv.send_message("/profile")
+        profile = await conv.get_response()
+        hp_percent = parse_hp_percent(profile.raw_text)
+
+        if hp_percent is None:
+            log.warning("Не удалось определить HP из /profile. Повторю проверку через 1 минуту.")
+        else:
+            log.info(f"Естественное восстановление HP: {hp_percent}%")
+            if hp_percent >= SAFE_HP_THRESHOLD_PERCENT:
+                log.info(
+                    f"HP восстановилось до безопасного уровня: {hp_percent}% "
+                    f"(порог {SAFE_HP_THRESHOLD_PERCENT}%)."
+                )
+                return
+
+        await asyncio.sleep(HP_CHECK_INTERVAL)
 
 
 async def enter_exhaustion(message: Message) -> bool:
@@ -83,6 +107,11 @@ async def resolve_warning(conv, resp: Message, required_energy: int = 0) -> str 
                 heal_resp = await conv.get_response()
                 log.info(f"/heal -> {heal_resp.raw_text}")
 
+                if HEAL_EMPTY_MARKER in heal_resp.raw_text:
+                    log.info("Лечебного предмета нет — жду естественного восстановления HP.")
+                    await wait_for_natural_hp_recovery(conv)
+                    return "retry"
+
                 await asyncio.sleep(COMMAND_DELAY)
                 updated_warning = await conv._client.get_messages(resp.chat_id, ids=resp.id)
                 if updated_warning:
@@ -106,5 +135,9 @@ async def resolve_warning(conv, resp: Message, required_energy: int = 0) -> str 
         await conv.send_message("/heal")
         heal_resp = await conv.get_response()
         log.info(f"/heal -> {heal_resp.raw_text}")
+
+        if HEAL_EMPTY_MARKER in heal_resp.raw_text:
+            log.info("Лечебного предмета нет — жду естественного восстановления HP.")
+            await wait_for_natural_hp_recovery(conv)
 
     return "retry"
