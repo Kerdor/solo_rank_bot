@@ -23,15 +23,12 @@ ACCOUNTS = []
 
 for index in range(1, 4):
     phone = os.getenv(f"PHONE_{index}", "").strip()
-    session_name = os.getenv(
-        f"SESSION_NAME_{index}",
-        f"auth/dungeon_selfbot_{index}",
-    ).strip()
+    session_name_env = os.getenv(f"SESSION_NAME_{index}")
 
-    if phone or session_name:
+    if phone or session_name_env:
         ACCOUNTS.append({
             "phone": phone,
-            "session_name": session_name,
+            "session_name": (session_name_env or f"auth/dungeon_selfbot_{index}").strip(),
         })
 
 if not ACCOUNTS:
