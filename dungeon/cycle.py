@@ -88,6 +88,26 @@ async def get_dungeon_radar(conv):
         return radar_msg
 
 
+async def get_favorite_defs(client):
+    """Читает DEF данжей из последнего сообщения в 'Избранном' Telegram."""
+    messages = await client.get_messages("me", limit=1)
+    if not messages:
+        return []
+
+    text = (messages[0].raw_text or "").strip()
+    if not text:
+        return []
+
+    parts = text.split()
+    if not all(part.isdigit() for part in parts):
+        log.warning("Последнее сообщение в 'Избранном' не содержит только DEF через пробел — избранные пропущены.")
+        return []
+
+    favorite_defs = [int(part) for part in parts]
+    log.info(f"Избранные DEF: {favorite_defs}")
+    return favorite_defs
+
+
 async def run_cycle(client):
     async with client.conversation(BOT_USERNAME, timeout=RESPONSE_TIMEOUT) as conv:
         while True:
@@ -119,11 +139,12 @@ async def run_cycle(client):
 
             entries = parse_dungeons(radar_msg.raw_text)
             resets_left = parse_resets_left(radar_msg.raw_text)
+            favorite_defs = await get_favorite_defs(client)
             log.info(f"Данжи: {[(e['idx'], e['name'], e['def'], e['energy']) for e in entries]} | сбросов: {resets_left}")
 
             chosen = None
             while chosen is None:
-                chosen, need_reset = choose_dungeon(entries, power, resets_left)
+                chosen, need_reset = choose_dungeon(entries, power, resets_left, favorite_defs)
                 if chosen is not None:
                     break
                 if not need_reset:
