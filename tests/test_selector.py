@@ -36,3 +36,41 @@ def test_choose_weakest_when_no_resets_left():
 
     assert chosen["idx"] == 1
     assert need_reset is False
+
+
+def test_choose_favorite_dungeon_by_priority():
+    entries = [
+        {"idx": 1, "name": "A", "rank": "B", "def": 1000},
+        {"idx": 2, "name": "B", "rank": "A", "def": 2000},
+        {"idx": 3, "name": "C", "rank": "S", "def": 3000},
+    ]
+
+    chosen, need_reset = choose_dungeon(entries, 3500, 3, [2000, 3000])
+
+    assert chosen["idx"] == 2
+    assert need_reset is False
+
+
+def test_skip_favorite_dungeon_when_power_is_not_strictly_greater():
+    entries = [
+        {"idx": 1, "name": "A", "rank": "B", "def": 2500},
+        {"idx": 2, "name": "B", "rank": "A", "def": 2000},
+    ]
+
+    chosen, need_reset = choose_dungeon(entries, 2500, 3, [2500])
+
+    assert chosen["idx"] == 1
+    assert need_reset is False
+
+
+def test_fall_back_to_normal_selection_when_no_favorite_matches():
+    entries = [
+        {"idx": 1, "name": "A", "rank": "B", "def": 1000},
+        {"idx": 2, "name": "B", "rank": "A", "def": 2000},
+        {"idx": 3, "name": "C", "rank": "S", "def": 3000},
+    ]
+
+    chosen, need_reset = choose_dungeon(entries, 2500, 3, [3000, 1500])
+
+    assert chosen["idx"] == 2
+    assert need_reset is False
