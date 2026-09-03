@@ -124,6 +124,8 @@ async def resolve_warning(conv, resp: Message, required_energy: int = 0) -> str 
     first_line = text.splitlines()[0] if text else ""
     log.info(f"Предупреждение: энергия={need_energy}, hp={need_hp} ({first_line})")
 
+    energy_item_missing = False
+
     if need_energy:
         await asyncio.sleep(COMMAND_DELAY)
         await conv.send_message("/energy")
@@ -139,7 +141,8 @@ async def resolve_warning(conv, resp: Message, required_energy: int = 0) -> str 
             log.info(f"/energy -> {energy_text}")
 
         if ENERGY_EMPTY_MARKER in energy_text:
-            log.info("Кристаллов для восстановления энергии нет — жду естественного восстановления и больше не спамлю /energy.")
+            energy_item_missing = True
+            log.info("Кристаллов для восстановления энергии нет — больше не использую /energy.")
 
     if need_hp:
         await asyncio.sleep(COMMAND_DELAY)
@@ -149,10 +152,13 @@ async def resolve_warning(conv, resp: Message, required_energy: int = 0) -> str 
         log.info(f"/heal -> {heal_text}")
 
         if HEAL_EMPTY_MARKER in heal_text:
-            log.info("Лечебных предметов нет — жду естественного восстановления HP и больше не спамлю /heal.")
+            log.info("Лечебных предметов нет — /heal больше не использую, жду естественного восстановления HP.")
             await wait_for_natural_hp_recovery(conv)
 
-    if need_energy and required_energy > 0:
-        await wait_for_energy(conv, required_energy)
+    if need_energy:
+        if required_energy > 0:
+            await wait_for_energy(conv, required_energy)
+        elif energy_item_missing:
+            return "wait_energy"
 
     return "retry"
