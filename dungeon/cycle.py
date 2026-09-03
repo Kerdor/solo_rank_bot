@@ -22,10 +22,9 @@ from parsers.messages import (
     HOT_SPRINGS_BUTTON,
     START_RECOVERY_BUTTON,
     RECOVERY_DONE_MARKER,
-    EXHAUSTION_BUTTON,
 )
 from dungeon.selector import choose_dungeon
-from dungeon.recovery import resolve_warning
+from dungeon.recovery import resolve_warning, prepare_dungeon_resources
 from telegram.buttons import click_button
 from telegram.events import wait_update, click_and_wait_update
 
@@ -161,6 +160,8 @@ async def run_cycle(client):
 
             log.info(f"Выбран данж #{chosen['idx']} {chosen['name']} (DEF {chosen['def']}, EN {chosen['energy']})")
 
+            await prepare_dungeon_resources(conv, chosen["energy"], hp_percent)
+
             updated_radar = await click_and_wait_update(
                 client,
                 radar_msg,
@@ -175,9 +176,6 @@ async def run_cycle(client):
             buttons = [button.text for row in updated_radar.buttons or [] for button in row]
             log.info(f"Обновлённое сообщение #{updated_radar.id}: {text.splitlines()[0] if text else '(пусто)'}")
             log.info(f"Кнопки после входа в данж: {buttons}")
-
-            if any(EXHAUSTION_BUTTON in button for button in buttons):
-                log.info("После входа появилось подтверждение режима истощения.")
 
             warning_result = await resolve_warning(conv, updated_radar, chosen["energy"])
             if warning_result == "started":
