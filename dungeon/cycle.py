@@ -81,6 +81,10 @@ async def get_dungeon_radar(conv):
         await conv.send_message("/dungeon")
         radar_msg = await conv.get_response(timeout=RESPONSE_TIMEOUT)
         warning_result = await resolve_warning(conv, radar_msg)
+        if warning_result == "wait_energy":
+            log.info("Энергии недостаточно и кристаллов нет — жду естественного восстановления 5 минут перед следующей проверкой.")
+            await asyncio.sleep(5 * 60)
+            continue
         if warning_result:
             log.info("Вместо списка данжей пришло предупреждение — пробуем /dungeon снова.")
             continue
@@ -121,11 +125,6 @@ async def run_cycle(client):
                 continue
 
             hp_percent = parse_hp_percent(profile_msg.raw_text)
-            if hp_percent is not None and hp_percent < LOW_HP_THRESHOLD_PERCENT:
-                log.info(f"HP {hp_percent}% ниже порога {LOW_HP_THRESHOLD_PERCENT}% — жму /heal.")
-                await conv.send_message("/heal")
-                heal_resp = await conv.get_response()
-                log.info(f"/heal -> {heal_resp.raw_text.splitlines()[0] if heal_resp.raw_text else ''}")
 
             radar_msg = await get_dungeon_radar(conv)
 
