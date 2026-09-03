@@ -11,6 +11,7 @@ from telegram.buttons import click_button
 
 
 ENERGY_EMPTY_MARKER = "Этот предмет нельзя использовать для восстановления энергии."
+ENERGY_FULL_MARKER = "Энергия уже полная."
 HEAL_EMPTY_MARKER = "Лечебный предмет не найден в инвентаре."
 TOO_MANY_COMMANDS_MARKER = "Слишком много команд. Подожди секунду."
 ENERGY_CHECK_INTERVAL = 5 * 60
@@ -98,6 +99,8 @@ async def prepare_dungeon_resources(conv, required_energy: int, hp_percent: int 
 
         if ENERGY_EMPTY_MARKER in energy_text:
             log.info("Кристаллов для восстановления энергии нет — /energy больше не использую, жду естественного восстановления.")
+        elif ENERGY_FULL_MARKER in energy_text:
+            log.info("Энергия уже полная — /energy больше не использую.")
 
     if need_hp:
         log.info("HP недостаточно — использую /heal.")
@@ -125,6 +128,7 @@ async def resolve_warning(conv, resp: Message, required_energy: int = 0) -> str 
     log.info(f"Предупреждение: энергия={need_energy}, hp={need_hp} ({first_line})")
 
     energy_item_missing = False
+    energy_already_full = False
 
     if need_energy:
         await asyncio.sleep(COMMAND_DELAY)
@@ -143,6 +147,9 @@ async def resolve_warning(conv, resp: Message, required_energy: int = 0) -> str 
         if ENERGY_EMPTY_MARKER in energy_text:
             energy_item_missing = True
             log.info("Кристаллов для восстановления энергии нет — больше не использую /energy.")
+        elif ENERGY_FULL_MARKER in energy_text:
+            energy_already_full = True
+            log.info("Энергия уже полная — больше не использую /energy и не зацикливаю команду.")
 
     if need_hp:
         await asyncio.sleep(COMMAND_DELAY)
@@ -157,8 +164,11 @@ async def resolve_warning(conv, resp: Message, required_energy: int = 0) -> str 
 
     if need_energy:
         if required_energy > 0:
-            await wait_for_energy(conv, required_energy)
-        elif energy_item_missing:
-            return "wait_energy"
+            if not energy_item_missing and not energy_already_full:
+                await wait_for_energy(conv, required_energy)
+            else:
+                await asyncio.sleep(ENERGY_CHECK_INTERVAL)
+        elif energy_item_missing or energy_already_full:
+            await asyncio.sleep(ENERGY_CHECK_INTERVAL)
 
     return "retry"
