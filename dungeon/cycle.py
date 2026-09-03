@@ -1,5 +1,7 @@
 """Основной цикл прохождения данжей."""
 
+import asyncio
+
 from config import (
     log,
     BOT_USERNAME,
