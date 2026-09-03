@@ -5,7 +5,7 @@ import asyncio
 from telethon.tl.custom import Message
 
 from config import log
-from parsers.messages import classify_warning, ENERGY_WARNING_MARKER, EXHAUSTION_BUTTON
+from parsers.messages import classify_warning, ENERGY_WARNING_MARKER
 from parsers.profile import parse_energy, parse_hp_percent
 from telegram.buttons import click_button
 
@@ -62,24 +62,59 @@ async def wait_for_natural_hp_recovery(conv) -> None:
         await asyncio.sleep(HP_CHECK_INTERVAL)
 
 
-async def enter_exhaustion(message: Message) -> bool:
-    """Нажимает 'Войти в истощении' на уже обновлённом сообщении предупреждения."""
-    buttons = [button.text for row in message.buttons or [] for button in row]
-    log.info(f"Кнопки предупреждения об энергии: {buttons}")
+async def prepare_dungeon_resources(conv, required_energy: int, hp_percent: int | None) -> None:
+    """Подготавливает HP и энергию перед входом в данж без режима истощения."""
+    energy = None
 
-    if ENERGY_WARNING_MARKER not in message.raw_text:
-        return False
+    await conv.send_message("/profile")
+    profile = await conv.get_response()
+    current_hp = parse_hp_percent(profile.raw_text)
+    energy = parse_energy(profile.raw_text)
 
-    if await click_button(message, EXHAUSTION_BUTTON):
-        log.info("Вход в данж в режиме истощения подтверждён.")
-        return True
+    if current_hp is None:
+        current_hp = hp_percent
 
-    log.error("Кнопка 'Войти в истощении' не найдена или не нажалась.")
-    return False
+    need_hp = current_hp is not None and current_hp < SAFE_HP_THRESHOLD_PERCENT
+    need_energy = energy is None or energy[0] < required_energy
+
+    log.info(
+        f"Перед входом: HP={current_hp if current_hp is not None else '?'}%, "
+        f"энергия={energy[0] if energy else '?'}/{energy[1] if energy else '?'}, "
+        f"требуется EN={required_energy}."
+    )
+
+    if need_energy:
+        log.info("Энергии недостаточно — использую /energy.")
+        await asyncio.sleep(COMMAND_DELAY)
+        await conv.send_message("/energy")
+        energy_resp = await conv.get_response()
+        log.info(f"/energy -> {energy_resp.raw_text}")
+
+        if TOO_MANY_COMMANDS_MARKER in energy_resp.raw_text:
+            await asyncio.sleep(COMMAND_DELAY)
+            await conv.send_message("/energy")
+            energy_resp = await conv.get_response()
+            log.info(f"/energy -> {energy_resp.raw_text}")
+
+        if ENERGY_EMPTY_MARKER in energy_resp.raw_text:
+            log.info("Предмета для восстановления энергии нет — жду естественного восстановления.")
+
+    if need_hp:
+        log.info("HP недостаточно — использую /heal.")
+        await asyncio.sleep(COMMAND_DELAY)
+        await conv.send_message("/heal")
+        heal_resp = await conv.get_response()
+        log.info(f"/heal -> {heal_resp.raw_text}")
+
+        if HEAL_EMPTY_MARKER in heal_resp.raw_text:
+            log.info("Лечебного предмета нет — жду естественного восстановления HP.")
+            await wait_for_natural_hp_recovery(conv)
+
+    await wait_for_energy(conv, required_energy)
 
 
 async def resolve_warning(conv, resp: Message, required_energy: int = 0) -> str | bool:
-    """Обрабатывает предупреждение через /energy, истощение и/или /heal."""
+    """Обрабатывает предупреждение через /energy и /heal, не разрешая вход в истощении."""
     text = resp.raw_text
     need_energy, need_hp = classify_warning(text)
     if not (need_energy or need_hp):
@@ -100,36 +135,6 @@ async def resolve_warning(conv, resp: Message, required_energy: int = 0) -> str 
             energy_resp = await conv.get_response()
             log.info(f"/energy -> {energy_resp.raw_text}")
 
-        if ENERGY_EMPTY_MARKER in energy_resp.raw_text:
-            if need_hp:
-                await asyncio.sleep(COMMAND_DELAY)
-                await conv.send_message("/heal")
-                heal_resp = await conv.get_response()
-                log.info(f"/heal -> {heal_resp.raw_text}")
-
-                if HEAL_EMPTY_MARKER in heal_resp.raw_text:
-                    log.info("Лечебного предмета нет — жду естественного восстановления HP.")
-                    await wait_for_natural_hp_recovery(conv)
-                    return "retry"
-
-                await asyncio.sleep(COMMAND_DELAY)
-                updated_warning = await conv._client.get_messages(resp.chat_id, ids=resp.id)
-                if updated_warning:
-                    resp = updated_warning
-                    log.info(
-                        f"После /heal сообщение #{resp.id} содержит кнопки: "
-                        f"{[button.text for row in resp.buttons or [] for button in row]}"
-                    )
-
-                if await enter_exhaustion(resp):
-                    return "started"
-                return "retry"
-
-            if await enter_exhaustion(resp):
-                return "started"
-
-            await wait_for_energy(conv, required_energy)
-
     if need_hp:
         await asyncio.sleep(COMMAND_DELAY)
         await conv.send_message("/heal")
@@ -139,5 +144,8 @@ async def resolve_warning(conv, resp: Message, required_energy: int = 0) -> str 
         if HEAL_EMPTY_MARKER in heal_resp.raw_text:
             log.info("Лечебного предмета нет — жду естественного восстановления HP.")
             await wait_for_natural_hp_recovery(conv)
+
+    if need_energy and required_energy > 0:
+        await wait_for_energy(conv, required_energy)
 
     return "retry"
