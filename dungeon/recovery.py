@@ -64,8 +64,6 @@ async def wait_for_natural_hp_recovery(conv) -> None:
 
 async def prepare_dungeon_resources(conv, required_energy: int, hp_percent: int | None) -> None:
     """Подготавливает HP и энергию перед входом в данж без режима истощения."""
-    energy = None
-
     await conv.send_message("/profile")
     profile = await conv.get_response()
     current_hp = parse_hp_percent(profile.raw_text)
@@ -88,26 +86,29 @@ async def prepare_dungeon_resources(conv, required_energy: int, hp_percent: int 
         await asyncio.sleep(COMMAND_DELAY)
         await conv.send_message("/energy")
         energy_resp = await conv.get_response()
-        log.info(f"/energy -> {energy_resp.raw_text}")
+        energy_text = energy_resp.raw_text
+        log.info(f"/energy -> {energy_text}")
 
-        if TOO_MANY_COMMANDS_MARKER in energy_resp.raw_text:
+        if TOO_MANY_COMMANDS_MARKER in energy_text:
             await asyncio.sleep(COMMAND_DELAY)
             await conv.send_message("/energy")
             energy_resp = await conv.get_response()
-            log.info(f"/energy -> {energy_resp.raw_text}")
+            energy_text = energy_resp.raw_text
+            log.info(f"/energy -> {energy_text}")
 
-        if ENERGY_EMPTY_MARKER in energy_resp.raw_text:
-            log.info("Предмета для восстановления энергии нет — жду естественного восстановления.")
+        if ENERGY_EMPTY_MARKER in energy_text:
+            log.info("Кристаллов для восстановления энергии нет — /energy больше не использую, жду естественного восстановления.")
 
     if need_hp:
         log.info("HP недостаточно — использую /heal.")
         await asyncio.sleep(COMMAND_DELAY)
         await conv.send_message("/heal")
         heal_resp = await conv.get_response()
-        log.info(f"/heal -> {heal_resp.raw_text}")
+        heal_text = heal_resp.raw_text
+        log.info(f"/heal -> {heal_text}")
 
-        if HEAL_EMPTY_MARKER in heal_resp.raw_text:
-            log.info("Лечебного предмета нет — жду естественного восстановления HP.")
+        if HEAL_EMPTY_MARKER in heal_text:
+            log.info("Лечебных предметов нет — /heal больше не использую, жду естественного восстановления HP.")
             await wait_for_natural_hp_recovery(conv)
 
     await wait_for_energy(conv, required_energy)
@@ -127,22 +128,28 @@ async def resolve_warning(conv, resp: Message, required_energy: int = 0) -> str 
         await asyncio.sleep(COMMAND_DELAY)
         await conv.send_message("/energy")
         energy_resp = await conv.get_response()
-        log.info(f"/energy -> {energy_resp.raw_text}")
+        energy_text = energy_resp.raw_text
+        log.info(f"/energy -> {energy_text}")
 
-        if TOO_MANY_COMMANDS_MARKER in energy_resp.raw_text:
+        if TOO_MANY_COMMANDS_MARKER in energy_text:
             await asyncio.sleep(COMMAND_DELAY)
             await conv.send_message("/energy")
             energy_resp = await conv.get_response()
-            log.info(f"/energy -> {energy_resp.raw_text}")
+            energy_text = energy_resp.raw_text
+            log.info(f"/energy -> {energy_text}")
+
+        if ENERGY_EMPTY_MARKER in energy_text:
+            log.info("Кристаллов для восстановления энергии нет — жду естественного восстановления и больше не спамлю /energy.")
 
     if need_hp:
         await asyncio.sleep(COMMAND_DELAY)
         await conv.send_message("/heal")
         heal_resp = await conv.get_response()
-        log.info(f"/heal -> {heal_resp.raw_text}")
+        heal_text = heal_resp.raw_text
+        log.info(f"/heal -> {heal_text}")
 
-        if HEAL_EMPTY_MARKER in heal_resp.raw_text:
-            log.info("Лечебного предмета нет — жду естественного восстановления HP.")
+        if HEAL_EMPTY_MARKER in heal_text:
+            log.info("Лечебных предметов нет — жду естественного восстановления HP и больше не спамлю /heal.")
             await wait_for_natural_hp_recovery(conv)
 
     if need_energy and required_energy > 0:
