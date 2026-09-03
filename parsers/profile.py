@@ -5,7 +5,7 @@ import re
 
 POWER_RE = re.compile(r"Мощь:\s*(\d+)")
 HP_PERCENT_RE = re.compile(r"HP:\s*\d+/\d+\s*\((\d+)%\)")
-ENERGY_RE = re.compile(r"⚡️\s*(\d+)\s*/\s*(\d+)\s*→\s*max\s*(?:(\d+)ч\s*)?(?:(\d+)м)?")
+ENERGY_RE = re.compile(r"⚡️\s*(\d+)\s*/\s*(\d+)\s*→\s*(?:max|Макс\.)\s*(?:(\d+)ч\s*)?(?:(\d+)м)?")
 
 
 def parse_power(text: str) -> int:
