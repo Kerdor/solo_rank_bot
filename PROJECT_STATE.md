@@ -21,9 +21,13 @@ Added an independent energy-waiting setting for each Telegram account.
 - With `WAIT_FOR_ENERGY=true`, the existing natural energy wait behavior is preserved.
 - Existing anti-spam handling for `/energy` and `/heal` remains in place.
 
+### Bug fix — 2026-09-04
+- Fixed the runtime `TypeError` caused by passing `wait_for_energy=` to `resolve_warning()`, while the function parameter is named `should_wait_for_energy`.
+- `dungeon/cycle.py` now passes the setting with the correct keyword at the dungeon radar warning-handling call.
+
 ### Changed files
 - `config.py` — parses per-account `WAIT_FOR_ENERGY_N` settings.
 - `main.py` — passes each account's setting into its own async dungeon loop.
-- `dungeon/cycle.py` — propagates the account-specific mode through dungeon radar, resource preparation, and warning handling.
+- `dungeon/cycle.py` — propagates the account-specific mode through dungeon radar, resource preparation, and warning handling; fixed the recovery argument mismatch.
 - `dungeon/recovery.py` — conditionally waits for energy or clicks `Войти в истощении` when waiting is disabled.
 - `.env.example` — documents the new settings.
