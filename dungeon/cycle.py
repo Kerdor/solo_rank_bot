@@ -82,7 +82,11 @@ async def get_dungeon_radar(conv, wait_for_energy=True):
     while True:
         await conv.send_message("/dungeon")
         radar_msg = await conv.get_response(timeout=RESPONSE_TIMEOUT)
-        warning_result = await resolve_warning(conv, radar_msg, wait_for_energy=wait_for_energy)
+        warning_result = await resolve_warning(
+            conv,
+            radar_msg,
+            should_wait_for_energy=wait_for_energy,
+        )
         if warning_result == "wait_energy":
             log.info("Энергии недостаточно и кристаллов нет — жду естественного восстановления 5 минут перед следующей проверкой.")
             await asyncio.sleep(5 * 60)
