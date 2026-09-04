@@ -67,7 +67,7 @@ async def prepare_dungeon_resources(
     conv,
     required_energy: int,
     hp_percent: int | None,
-    wait_for_energy: bool = True,
+    should_wait_for_energy: bool = True,
 ) -> None:
     """Подготавливает HP и энергию перед входом в данж."""
     await conv.send_message("/profile")
@@ -119,7 +119,7 @@ async def prepare_dungeon_resources(
             log.info("Лечебных предметов нет — /heal больше не использую, жду естественного восстановления HP.")
             await wait_for_natural_hp_recovery(conv)
 
-    if wait_for_energy:
+    if should_wait_for_energy:
         await wait_for_energy(conv, required_energy)
     else:
         log.info("Ожидание энергии отключено для этого аккаунта — продолжаю вход в данж в истощении при необходимости.")
@@ -129,7 +129,7 @@ async def resolve_warning(
     conv,
     resp: Message,
     required_energy: int = 0,
-    wait_for_energy: bool = True,
+    should_wait_for_energy: bool = True,
 ) -> str | bool:
     """Обрабатывает предупреждение через /energy и /heal."""
     text = resp.raw_text
@@ -176,7 +176,7 @@ async def resolve_warning(
             await wait_for_natural_hp_recovery(conv)
 
     if need_energy:
-        if wait_for_energy:
+        if should_wait_for_energy:
             if required_energy > 0:
                 if not energy_item_missing and not energy_already_full:
                     await wait_for_energy(conv, required_energy)
