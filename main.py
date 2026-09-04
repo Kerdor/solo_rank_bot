@@ -28,15 +28,16 @@ async def main():
         else:
             await client.start()
 
-        clients.append((index, client))
-        log.info(f"[АККАУНТ {index}] Авторизация завершена.")
+        clients.append((index, client, account["wait_for_energy"]))
+        mode = "ждать восстановления энергии" if account["wait_for_energy"] else "входить в истощении"
+        log.info(f"[АККАУНТ {index}] Авторизация завершена. Режим энергии: {mode}.")
 
-    async def run_connected_account(index, client):
+    async def run_connected_account(index, client, wait_for_energy):
         try:
             log.info(f"[АККАУНТ {index}] Начинаю бесконечный цикл данжей.")
             while True:
                 try:
-                    await run_cycle(client)
+                    await run_cycle(client, wait_for_energy)
                 except asyncio.TimeoutError as e:
                     log.error(
                         f"[АККАУНТ {index}] Таймаут ожидания ответа бота: {e}. "
@@ -55,10 +56,10 @@ async def main():
 
     try:
         await asyncio.gather(
-            *(run_connected_account(index, client) for index, client in clients)
+            *(run_connected_account(index, client, wait_for_energy) for index, client, wait_for_energy in clients)
         )
     finally:
-        for _, client in clients:
+        for _, client, _ in clients:
             if client.is_connected():
                 await client.disconnect()
 
