@@ -77,12 +77,12 @@ async def visit_hot_springs(conv, client, profile_msg=None):
     log.info("Восстановление завершено, возвращаюсь к данжам.")
 
 
-async def get_dungeon_radar(conv):
+async def get_dungeon_radar(conv, wait_for_energy=True):
     """Получает свежий список данжей и обрабатывает предупреждения."""
     while True:
         await conv.send_message("/dungeon")
         radar_msg = await conv.get_response(timeout=RESPONSE_TIMEOUT)
-        warning_result = await resolve_warning(conv, radar_msg)
+        warning_result = await resolve_warning(conv, radar_msg, wait_for_energy=wait_for_energy)
         if warning_result == "wait_energy":
             log.info("Энергии недостаточно и кристаллов нет — жду естественного восстановления 5 минут перед следующей проверкой.")
             await asyncio.sleep(5 * 60)
@@ -113,7 +113,7 @@ async def get_favorite_defs(client):
     return favorite_defs
 
 
-async def run_cycle(client):
+async def run_cycle(client, wait_for_energy=True):
     async with client.conversation(BOT_USERNAME, timeout=RESPONSE_TIMEOUT) as conv:
         while True:
             await conv.send_message("/profile")
@@ -128,7 +128,7 @@ async def run_cycle(client):
 
             hp_percent = parse_hp_percent(profile_msg.raw_text)
 
-            radar_msg = await get_dungeon_radar(conv)
+            radar_msg = await get_dungeon_radar(conv, wait_for_energy)
 
             if ALREADY_IN_DUNGEON_MARKER in radar_msg.raw_text:
                 log.info("Уже в данже (незавершённый прошлый забег) — жду отчёт вместо списка.")
@@ -161,7 +161,7 @@ async def run_cycle(client):
 
             log.info(f"Выбран данж #{chosen['idx']} {chosen['name']} (DEF {chosen['def']}, EN {chosen['energy']})")
 
-            await prepare_dungeon_resources(conv, chosen["energy"], hp_percent)
+            await prepare_dungeon_resources(conv, chosen["energy"], hp_percent, wait_for_energy)
 
             updated_radar = await click_and_wait_update(
                 client,
@@ -178,12 +178,12 @@ async def run_cycle(client):
             log.info(f"Обновлённое сообщение #{updated_radar.id}: {text.splitlines()[0] if text else '(пусто)'}")
             log.info(f"Кнопки после входа в данж: {buttons}")
 
-            warning_result = await resolve_warning(conv, updated_radar, chosen["energy"])
+            warning_result = await resolve_warning(conv, updated_radar, chosen["energy"], wait_for_energy)
             if warning_result == "started":
                 enter_resp = await wait_update(client, RESPONSE_TIMEOUT, updated_radar.id)
                 text = enter_resp.raw_text
             elif warning_result == "retry":
-                radar_msg = await get_dungeon_radar(conv)
+                radar_msg = await get_dungeon_radar(conv, wait_for_energy)
                 clicked = await click_button(radar_msg, f"Войти #{chosen['idx']}")
                 if not clicked:
                     log.error(f"Не нашёл свежую кнопку 'Войти #{chosen['idx']}' после обработки предупреждения.")
@@ -191,7 +191,7 @@ async def run_cycle(client):
                 enter_resp = await wait_update(client, RESPONSE_TIMEOUT)
                 text = enter_resp.raw_text
 
-                warning_result = await resolve_warning(conv, enter_resp, chosen["energy"])
+                warning_result = await resolve_warning(conv, enter_resp, chosen["energy"], wait_for_energy)
                 if warning_result == "started":
                     enter_resp = await wait_update(client, RESPONSE_TIMEOUT)
                     text = enter_resp.raw_text
