@@ -16,6 +16,14 @@ API_ID = int(os.getenv("API_ID", "0"))
 API_HASH = os.getenv("API_HASH", "")
 BOT_USERNAME = os.getenv("BOT_USERNAME", "solo_rank_bot")
 
+
+def parse_bool(value: str, default: bool = True) -> bool:
+    """Преобразует значение из .env в bool."""
+    if value is None:
+        return default
+    return value.strip().lower() in {"1", "true", "yes", "on", "да", "тру"}
+
+
 # Аккаунты Telegram. Каждый аккаунт использует отдельный session-файл.
 # PHONE нужен только для первичной авторизации; после создания .session
 # повторный ввод кода обычно не потребуется.
@@ -29,6 +37,7 @@ for index in range(1, 4):
         ACCOUNTS.append({
             "phone": phone,
             "session_name": (session_name_env or f"auth/dungeon_selfbot_{index}").strip(),
+            "wait_for_energy": parse_bool(os.getenv(f"WAIT_FOR_ENERGY_{index}"), True),
         })
 
 if not ACCOUNTS:
@@ -36,6 +45,7 @@ if not ACCOUNTS:
     ACCOUNTS.append({
         "phone": os.getenv("PHONE", "").strip(),
         "session_name": os.getenv("SESSION_NAME", "auth/dungeon_selfbot").strip(),
+        "wait_for_energy": parse_bool(os.getenv("WAIT_FOR_ENERGY"), True),
     })
 
 if not API_ID or not API_HASH:
