@@ -5,7 +5,7 @@ import asyncio
 from telethon.tl.custom import Message
 
 from config import log
-from parsers.messages import classify_warning, ENERGY_WARNING_MARKER
+from parsers.messages import classify_warning, ENERGY_WARNING_MARKER, EXHAUSTION_BUTTON
 from parsers.profile import parse_energy, parse_hp_percent
 from telegram.buttons import click_button
 
@@ -63,8 +63,13 @@ async def wait_for_natural_hp_recovery(conv) -> None:
         await asyncio.sleep(HP_CHECK_INTERVAL)
 
 
-async def prepare_dungeon_resources(conv, required_energy: int, hp_percent: int | None) -> None:
-    """Подготавливает HP и энергию перед входом в данж без режима истощения."""
+async def prepare_dungeon_resources(
+    conv,
+    required_energy: int,
+    hp_percent: int | None,
+    wait_for_energy: bool = True,
+) -> None:
+    """Подготавливает HP и энергию перед входом в данж."""
     await conv.send_message("/profile")
     profile = await conv.get_response()
     current_hp = parse_hp_percent(profile.raw_text)
@@ -98,7 +103,7 @@ async def prepare_dungeon_resources(conv, required_energy: int, hp_percent: int 
             log.info(f"/energy -> {energy_text}")
 
         if ENERGY_EMPTY_MARKER in energy_text:
-            log.info("Кристаллов для восстановления энергии нет — /energy больше не использую, жду естественного восстановления.")
+            log.info("Кристаллов для восстановления энергии нет — больше не использую /energy.")
         elif ENERGY_FULL_MARKER in energy_text:
             log.info("Энергия уже полная — /energy больше не использую.")
 
@@ -114,11 +119,19 @@ async def prepare_dungeon_resources(conv, required_energy: int, hp_percent: int 
             log.info("Лечебных предметов нет — /heal больше не использую, жду естественного восстановления HP.")
             await wait_for_natural_hp_recovery(conv)
 
-    await wait_for_energy(conv, required_energy)
+    if wait_for_energy:
+        await wait_for_energy(conv, required_energy)
+    else:
+        log.info("Ожидание энергии отключено для этого аккаунта — продолжаю вход в данж в истощении при необходимости.")
 
 
-async def resolve_warning(conv, resp: Message, required_energy: int = 0) -> str | bool:
-    """Обрабатывает предупреждение через /energy и /heal, не разрешая вход в истощении."""
+async def resolve_warning(
+    conv,
+    resp: Message,
+    required_energy: int = 0,
+    wait_for_energy: bool = True,
+) -> str | bool:
+    """Обрабатывает предупреждение через /energy и /heal."""
     text = resp.raw_text
     need_energy, need_hp = classify_warning(text)
     if not (need_energy or need_hp):
@@ -163,12 +176,21 @@ async def resolve_warning(conv, resp: Message, required_energy: int = 0) -> str 
             await wait_for_natural_hp_recovery(conv)
 
     if need_energy:
-        if required_energy > 0:
-            if not energy_item_missing and not energy_already_full:
-                await wait_for_energy(conv, required_energy)
-            else:
+        if wait_for_energy:
+            if required_energy > 0:
+                if not energy_item_missing and not energy_already_full:
+                    await wait_for_energy(conv, required_energy)
+                else:
+                    await asyncio.sleep(ENERGY_CHECK_INTERVAL)
+            elif energy_item_missing or energy_already_full:
                 await asyncio.sleep(ENERGY_CHECK_INTERVAL)
-        elif energy_item_missing or energy_already_full:
-            await asyncio.sleep(ENERGY_CHECK_INTERVAL)
+        elif energy_item_missing:
+            log.info("Ожидание энергии отключено — нажимаю 'Войти в истощении'.")
+            clicked = await click_button(resp, EXHAUSTION_BUTTON)
+            if clicked:
+                return "started"
+            log.warning("Кнопка 'Войти в истощении' не найдена — повторю попытку входа.")
+        else:
+            log.info("Ожидание энергии отключено — не жду естественного восстановления.")
 
     return "retry"
