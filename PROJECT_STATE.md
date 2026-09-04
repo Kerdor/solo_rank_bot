@@ -1,36 +1,29 @@
 # PROJECT STATE
 
-## 2026-09-03 — HP/energy dungeon-entry checkpoint
+## 2026-09-04 — Per-account energy waiting mode
 
-Implemented resource preparation before dungeon entry and protection against recovery-command spam.
+Added an independent energy-waiting setting for each Telegram account.
+
+### Configuration
+- `WAIT_FOR_ENERGY_1=true|false`
+- `WAIT_FOR_ENERGY_2=true|false`
+- `WAIT_FOR_ENERGY_3=true|false`
+- `true` = wait for natural energy regeneration until the selected dungeon can be entered normally.
+- `false` = do not wait for natural energy regeneration; when the game offers `Войти в истощении`, the bot uses that option.
+- If the variable is omitted, the default is `true`, preserving the previous behavior.
+- The existing single-account fallback also supports `WAIT_FOR_ENERGY`.
 
 ### Current behavior
-- If HP is low, the bot uses `/heal` before entering a dungeon.
-- If energy is insufficient, the bot uses `/energy` before entering a dungeon.
-- If both HP and energy are insufficient, both recovery commands are attempted.
-- If `/energy` returns `Этот предмет нельзя использовать для восстановления энергии.`, the bot treats energy crystals as unavailable and stops retrying `/energy`; it waits for natural energy regeneration.
-- If `/energy` returns `Энергия уже полная.`, the bot recognizes that response and does not repeatedly issue `/energy`.
-- If `/heal` returns `Лечебный предмет не найден в инвентаре.`, the bot treats healing items as unavailable and waits for natural HP recovery.
-- If energy is insufficient and no energy item is available, the bot does not repeatedly call `/energy` and does not enter the dungeon in exhaustion.
-- If HP is sufficient but energy is not, the bot waits for energy and does not enter the dungeon exhausted.
-- If both resources are insufficient and recovery items are unavailable, the bot waits for natural recovery instead of looping recovery commands.
-- The old unconditional low-HP `/heal` call in the main cycle was removed so it cannot spam `/heal` before the centralized resource preparation.
-- Warning handling no longer confirms `Войти в истощении`.
-
-### Parser fix — 2026-09-03
-- Fixed `parsers/profile.py` energy parsing for the actual `/profile` format `⚡️ 140/140 → Макс.`.
-- The parser now accepts both `Макс.` and the previously supported `max` format.
-- The recovery-time suffix remains optional, so a full-energy profile line is parsed correctly instead of causing repeated `/profile` retries.
+- Each account carries its own `wait_for_energy` mode into its independent dungeon loop.
+- Energy recovery and exhaustion behavior are therefore isolated per account.
+- HP recovery behavior remains unchanged: low HP can still trigger `/heal` and, when healing items are unavailable, natural HP recovery is still awaited.
+- When energy is insufficient, `/energy` is still attempted first. If no energy item is available and the account has `WAIT_FOR_ENERGY=false`, the bot clicks `Войти в истощении` instead of waiting.
+- With `WAIT_FOR_ENERGY=true`, the existing natural energy wait behavior is preserved.
+- Existing anti-spam handling for `/energy` and `/heal` remains in place.
 
 ### Changed files
-- `dungeon/recovery.py`
-- `dungeon/cycle.py`
-- `parsers/profile.py`
-
-Latest commits:
-- Resource recovery logic: `a3b525e753bdd0335c73ab50e80a8e4d76b27a0c`
-- Dungeon entry preparation: `cb1310335ac591af562f7fd551e6d66c918aa07a`
-- Recovery command anti-spam: `727c4939087484a5f576a70db03508dd0a37c206`
-- Recovery wait-loop handling: `ce493658a3c39785be62dc5db1842ad7e417d6d0`
-- Full-energy response handling: `47e349737e290589e4ed15649adda4c306edb2e3`
-- Energy profile parser fix: `6b408d1a2ea15d89092ac30a5c7b628a4d3a997d`
+- `config.py` — parses per-account `WAIT_FOR_ENERGY_N` settings.
+- `main.py` — passes each account's setting into its own async dungeon loop.
+- `dungeon/cycle.py` — propagates the account-specific mode through dungeon radar, resource preparation, and warning handling.
+- `dungeon/recovery.py` — conditionally waits for energy or clicks `Войти в истощении` when waiting is disabled.
+- `.env.example` — documents the new settings.
